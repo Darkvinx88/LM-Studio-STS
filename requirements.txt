@@ -1,0 +1,3 @@
+pywin32
+pyqt6
+PyQt6-WebEngine
