@@ -1,5 +1,5 @@
 @echo off
-title LM Studio STS v0.4.7 - Enhanced Launcher
+title LM Studio STS v1.0 - Enhanced Launcher
 setlocal enabledelayedexpansion
 
 :: Visual prefixes for better readability (no colors to avoid compatibility issues)
@@ -9,7 +9,6 @@ set "WARNING=[WARN] "
 set "INFO=[INFO] "
 
 :: Configuration variables
-set "LM_STUDIO_PATH=D:\LLM\LM Studio\LM Studio.exe"
 set "LMS_CLI_PATH=C:\Users\DarKVinX\.lmstudio\bin\lms.exe"
 set "MODEL_PATH=llama-3some-8b-v2"
 set "KOKORO_PATH=D:\LLM\Kokoro\Kokoro-TTS-Local"
@@ -32,35 +31,31 @@ echo ================================
 echo   LM Studio STS Enhanced Launcher
 echo ================================
 echo.
-
 :: Function to check if file/directory exists
 call :check_paths
 
 echo ================================
-echo   Starting LM Studio
-echo ================================
-if not exist "%LM_STUDIO_PATH%" (
-    echo %ERROR%LM Studio not found at %LM_STUDIO_PATH%
-    echo %date% %time% - ERROR: LM Studio not found >> "%LOG_FILE%"
-    goto :error_exit
-)
-
-start "" "%LM_STUDIO_PATH%"
-echo %INFO%LM Studio launching... waiting for initialization
-echo %date% %time% - LM Studio launched >> "%LOG_FILE%"
-
-:: Enhanced wait with progress indicator
-call :wait_with_progress 8 "LM Studio initialization"
-
-echo.
-echo ================================
-echo   Loading model with LMS CLI
+echo   Starting LM Studio Server (headless CLI)
 echo ================================
 if not exist "%LMS_CLI_PATH%" (
     echo %ERROR%LMS CLI not found at %LMS_CLI_PATH%
     echo %date% %time% - ERROR: LMS CLI not found >> "%LOG_FILE%"
     goto :error_exit
 )
+
+:: Start LM Studio in headless server mode via CLI — no GUI window
+echo %INFO%Starting lms server (headless, with CORS)...
+start /B "" "%LMS_CLI_PATH%" server start --cors
+echo %SUCCESS%LM Studio server started in headless mode (no GUI)
+echo %date% %time% - lms server start --cors launched >> "%LOG_FILE%"
+
+:: Wait for the server to be ready before loading the model
+call :wait_with_progress 8 "LM Studio server initialization"
+
+echo.
+echo ================================
+echo   Loading model with LMS CLI
+echo ================================
 
 echo %INFO%Loading model: %MODEL_PATH%
 "%LMS_CLI_PATH%" load "%MODEL_PATH%"
@@ -118,7 +113,7 @@ if not exist "index.html" (
 )
 
 echo %INFO%Starting HTTP server on %FRONTEND_HOST%:%FRONTEND_PORT%
-start /B "" python -m http.server %FRONTEND_PORT% --bind %FRONTEND_HOST%
+start /B "" python serve.py %FRONTEND_PORT% %FRONTEND_HOST%
 echo %SUCCESS%Frontend server started (Background Process)
 echo %date% %time% - Frontend server started >> "%LOG_FILE%"
 
@@ -134,7 +129,7 @@ echo   All services started successfully!
 echo ================================
 echo.
 echo Services running in background:
-echo   - LM Studio: Running (External Process)
+echo   - LM Studio Server: headless CLI (lms server start --cors)
 echo   - Model: %MODEL_PATH%
 echo   - Kokoro TTS: http://localhost:7860 (Background Process)
 echo   - Frontend: http://localhost:%FRONTEND_PORT% (Background Process)
@@ -143,14 +138,26 @@ echo ================================
 echo   RUNNING - Press 'q' + Enter to shutdown all services
 echo ================================
 
+:: Launch terminal q-listener in separate window
+start "q-listener" /min cmd /c ":ql & set /p ui=[q+Enter to shutdown]: & if /i !ui!==q (echo x>!FRONTEND_PATH!\shutdown.trigger) & goto ql"
+
+echo %INFO%System ready. Waiting for shutdown (GUI button or type q + Enter)...
+echo.
+:: Clean up leftover trigger files from previous runs
+del /q "%FRONTEND_PATH%\shutdown.trigger" >nul 2>&1
+
+:: Use PowerShell to watch the trigger file in background while also
+:: accepting 'q' from the terminal - both paths lead to shutdown_services
 :monitor_loop
-set /p user_input="[Type 'q' and press Enter to shutdown]: "
-if /i "!user_input!"=="q" (
+:: Check trigger file first (set by serve.py when GUI shutdown button is pressed)
+if exist "%FRONTEND_PATH%\shutdown.trigger" (
+    del /q "%FRONTEND_PATH%\shutdown.trigger" >nul 2>&1
     echo.
-    echo %INFO%Shutdown requested, stopping all services...
+    echo %INFO%Shutdown signal received from browser GUI...
     goto :shutdown_services
 )
-echo %INFO%Invalid input. Type 'q' and press Enter to shutdown.
+:: Wait 1 second then loop - terminal input is handled below
+timeout /t 1 >nul
 goto :monitor_loop
 
 :shutdown_services
@@ -159,25 +166,40 @@ echo ================================
 echo   Shutting down services...
 echo ================================
 
-:: Kill Python processes (Kokoro TTS and Frontend Server)
-echo %INFO%Stopping Python processes...
-taskkill /f /im python.exe >nul 2>&1
-if %errorlevel% equ 0 (
-    echo %SUCCESS%Python processes stopped
-) else (
-    echo %WARNING%No Python processes found or already stopped
+:: 1. Stop LM Studio server via CLI (graceful)
+echo %INFO%Stopping LM Studio server gracefully...
+if exist "%LMS_CLI_PATH%" (
+    "%LMS_CLI_PATH%" server stop >nul 2>&1
 )
 
-:: Kill any remaining HTTP server processes
-echo %INFO%Stopping any remaining HTTP server processes...
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":8000" ^| find "LISTENING"') do (
+:: 2. Target the core GUI processes spawned by the CLI engine
+echo %INFO%Killing main LM Studio process trees...
+taskkill /f /t /im "LM Studio.exe" >nul 2>&1
+taskkill /f /t /im "lms.exe" >nul 2>&1
+
+:: 3. Aggressive PowerShell purge for anything matching 'lmstudio' or 'lms'
+echo %INFO%Cleaning up any remaining hidden sub-processes...
+powershell -Command "Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*lmstudio*' -or $_.Path -like '*lm-studio*' -or $_.Name -like '*lms*' -or $_.Name -like '*LM Studio*' } | Stop-Process -Force" >nul 2>&1
+
+:: 4. Secondary fallback: check port 1234
+for /f "tokens=5" %%a in ('netstat -ano ^| find ":1234" ^| find "LISTENING"') do (
+    taskkill /f /t /pid %%a >nul 2>&1
+)
+echo %SUCCESS%LM Studio services cleared
+
+:: 5. Kill process listening on port 8000 (frontend serve.py)
+echo %INFO%Stopping frontend server (port %FRONTEND_PORT%)...
+for /f "tokens=5" %%a in ('netstat -ano ^| find ":%FRONTEND_PORT%" ^| find "LISTENING"') do (
     taskkill /f /pid %%a >nul 2>&1
-    echo %SUCCESS%Frontend server process stopped
 )
+echo %SUCCESS%Frontend server stopped
 
-:: Optional: Close LM Studio (uncomment if desired)
- echo %INFO%Stopping LM Studio...
- taskkill  /im "LM Studio.exe" >nul 2>&1
+:: 6. Kill process listening on port 7860 (Kokoro TTS)
+echo %INFO%Stopping Kokoro TTS (port 7860)...
+for /f "tokens=5" %%a in ('netstat -ano ^| find ":7860" ^| find "LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
+echo %SUCCESS%Kokoro TTS stopped
 
 echo %date% %time% - Services shutdown initiated >> "%LOG_FILE%"
 
@@ -227,13 +249,6 @@ goto :end
 echo %INFO%Verifying installation paths...
 set "path_errors=0"
 
-if not exist "%LM_STUDIO_PATH%" (
-    echo   X LM Studio: Not found
-    set /a path_errors+=1
-) else (
-    echo   + LM Studio: Found
-)
-
 if not exist "%LMS_CLI_PATH%" (
     echo   X LMS CLI: Not found
     set /a path_errors+=1
@@ -272,7 +287,8 @@ for /l %%i in (1,1,%duration%) do (
     echo|set /p="."
     timeout /t 1 >nul
 )
-echo. Ready!
+echo.
+Ready!
 goto :eof
 
 :error_exit
