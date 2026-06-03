@@ -7,7 +7,7 @@ import socket
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import TCPServer
-from PyQt6.QtCore import QUrl, QTimer, Qt, QEvent
+from PyQt6.QtCore import QUrl, QTimer, Qt, QEvent, pyqtSignal, QObject
 from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter, QFont, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -44,6 +44,9 @@ class CORSHTTPRequestHandler(SimpleHTTPRequestHandler):
 
 
 class StandaloneChatApp(QMainWindow):
+    # Segnale thread-safe per aggiornare la UI dal boot thread
+    loading_update = pyqtSignal(int, str, str, str)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("LM Studio STS Chat - Full Desktop App")
@@ -61,6 +64,7 @@ class StandaloneChatApp(QMainWindow):
         self.subprocesses = []
         self.http_server = None
         self.backend_ready = False
+        self.loading_update.connect(self._run_loading_js)
 
         self.clean_environment()
         self.start_internal_web_server()
@@ -106,17 +110,180 @@ class StandaloneChatApp(QMainWindow):
         QApplication.instance().installEventFilter(self)
 
     def show_loading_screen(self, message):
-        self.web_view.setHtml(f"""
+        self.web_view.setHtml("""
             <html>
-                <body style="background-color: #0a0a0b; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-                    <div style="text-align: center;">
-                        <h2 style="color: #3b82f6; margin-bottom: 10px; font-weight: 500;">LM Studio STS Chat</h2>
-                        <p style="color: #a3a3a3; font-size: 14px;">{message}</p>
-                        <div style="margin-top: 20px; color: #737373; font-size: 11px;">Caricamento dei modelli in corso...</div>
-                    </div>
-                </body>
+            <head>
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body {
+                background-color: #0a0a0b;
+                color: white;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+              }
+              body::before {
+                content: '';
+                position: fixed;
+                inset: 0;
+                background:
+                  radial-gradient(circle at 20% 80%, rgba(59,130,246,0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 20%, rgba(29,78,216,0.06) 0%, transparent 50%);
+                pointer-events: none;
+              }
+              .container {
+                text-align: center;
+                width: 540px;
+                max-width: 90vw;
+              }
+              .logo {
+                font-size: 13px;
+                font-weight: 600;
+                color: #a3a3a3;
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+                margin-bottom: 10px;
+              }
+              h2 {
+                color: #3b82f6;
+                font-size: 26px;
+                font-weight: 600;
+                letter-spacing: -0.03em;
+                margin-bottom: 8px;
+              }
+              #status-msg {
+                color: #a3a3a3;
+                font-size: 14px;
+                min-height: 20px;
+                margin-bottom: 24px;
+                transition: opacity 0.3s;
+              }
+              .progress-track {
+                background: rgba(255,255,255,0.07);
+                border-radius: 6px;
+                height: 6px;
+                width: 100%;
+                overflow: hidden;
+                margin-bottom: 8px;
+                border: 1px solid rgba(255,255,255,0.06);
+              }
+              #progress-bar {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+                border-radius: 6px;
+                transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+                position: relative;
+                overflow: hidden;
+              }
+              #progress-bar::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+                animation: shimmer 1.8s infinite;
+              }
+              @keyframes shimmer {
+                0%   { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+              #progress-label {
+                text-align: right;
+                font-size: 11px;
+                color: #3b82f6;
+                font-weight: 600;
+                margin-bottom: 20px;
+                font-variant-numeric: tabular-nums;
+              }
+              .console-box {
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 10px;
+                padding: 12px 14px;
+                text-align: left;
+                max-height: 140px;
+                overflow-y: auto;
+                font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+                font-size: 11.5px;
+                line-height: 1.7;
+                color: #737373;
+              }
+              .console-box::-webkit-scrollbar { width: 4px; }
+              .console-box::-webkit-scrollbar-track { background: transparent; }
+              .console-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+              .log-line { display: block; }
+              .log-line.ok   { color: #10b981; }
+              .log-line.warn { color: #f59e0b; }
+              .log-line.err  { color: #ef4444; }
+              .log-line.info { color: #60a5fa; }
+              .dots::after {
+                content: '';
+                animation: dots 1.4s steps(4, end) infinite;
+              }
+              @keyframes dots {
+                0%   { content: ''; }
+                25%  { content: '.'; }
+                50%  { content: '..'; }
+                75%  { content: '...'; }
+                100% { content: ''; }
+              }
+            </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="logo">LM Studio STS</div>
+                <h2>Creazione ecosistema in corso</h2>
+                <div id="status-msg"><span class="dots">Inizializzazione</span></div>
+                <div class="progress-track">
+                  <div id="progress-bar"></div>
+                </div>
+                <div id="progress-label">0%</div>
+                <div class="console-box" id="console-log">
+                  <span class="log-line info">&gt; Avvio sequenza di boot...</span>
+                </div>
+              </div>
+              <script>
+                function setProgress(pct, msg, logText, logType) {
+                  document.getElementById('progress-bar').style.width = pct + '%';
+                  document.getElementById('progress-label').textContent = pct + '%';
+                  if (msg) {
+                    var s = document.getElementById('status-msg');
+                    s.style.opacity = '0';
+                    setTimeout(function() {
+                      s.innerHTML = msg;
+                      s.style.opacity = '1';
+                    }, 150);
+                  }
+                  if (logText) {
+                    var box = document.getElementById('console-log');
+                    var line = document.createElement('span');
+                    line.className = 'log-line' + (logType ? ' ' + logType : '');
+                    line.textContent = '> ' + logText;
+                    box.appendChild(document.createElement('br'));
+                    box.appendChild(line);
+                    box.scrollTop = box.scrollHeight;
+                  }
+                }
+              </script>
+            </body>
             </html>
         """)
+
+    def update_loading(self, pct, msg="", log_text="", log_type=""):
+        """Emette il segnale thread-safe — può essere chiamato da qualsiasi thread."""
+        self.loading_update.emit(pct, msg, log_text, log_type)
+
+    def _run_loading_js(self, pct, msg, log_text, log_type):
+        """Slot eseguito nel main thread: aggiorna la UI via JavaScript."""
+        def esc(s): return s.replace("'", "\\'").replace("\n", " ")
+        js = f"if(typeof setProgress==='function') setProgress({pct}, '{esc(msg)}', '{esc(log_text)}', '{esc(log_type)}');"
+        try:
+            self.web_view.page().runJavaScript(js)
+        except Exception:
+            pass
 
     def clean_environment(self):
         print("[Python] Pulizia preventiva dei processi...")
@@ -154,6 +321,7 @@ class StandaloneChatApp(QMainWindow):
         try:
             # 1. Avvia LM Studio in modalità server headless (nessuna GUI)
             print("[Python] Step 1: Avvio di LM Studio server (headless)...")
+            self.update_loading(10, "Avvio server LM Studio...", "Step 1: Avvio LM Studio server (headless)", "info")
             if os.path.exists(LMS_CLI_PATH):
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -166,22 +334,28 @@ class StandaloneChatApp(QMainWindow):
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 self.subprocesses.append(p_lms)
+                self.update_loading(20, "LM Studio avviato, attesa inizializzazione...", "lms.exe avviato con successo", "ok")
             else:
                 print(f"[Python] ERRORE: lms.exe non trovato in {LMS_CLI_PATH}")
+                self.update_loading(20, "Attenzione: lms.exe non trovato", f"ERRORE: lms.exe non trovato in {LMS_CLI_PATH}", "err")
             
+            self.update_loading(25, "Attesa avvio server LLM<span class='dots'></span>", "In attesa che il server LLM sia pronto (8s)...", "")
             time.sleep(8)
 
             # 2. Carica il modello
             print(f"[Python] Step 2: Caricamento del modello '{MODEL_PATH}'...")
+            self.update_loading(40, f"Caricamento modello: {MODEL_PATH}<span class='dots'></span>", f"Step 2: Caricamento modello '{MODEL_PATH}'", "info")
             if os.path.exists(LMS_CLI_PATH):
                 subprocess.run(
                     [LMS_CLI_PATH, "load", MODEL_PATH], 
                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, encoding='utf-8', errors='ignore'
                 )
+                self.update_loading(60, "Modello caricato in memoria", f"Modello '{MODEL_PATH}' caricato con successo", "ok")
             
            # 3. Avvia Kokoro con FIX per UnicodeEncodeError (UTF-8 Forzato)
             print("[Python] Step 3: Avvio di Kokoro TTS...")
+            self.update_loading(70, "Avvio motore TTS Kokoro<span class='dots'></span>", "Step 3: Avvio Kokoro TTS...", "info")
             
             venv_python = os.path.join(KOKORO_PATH, "venv", "Scripts", "python.exe")
             venv_scripts = os.path.join(KOKORO_PATH, "venv", "Scripts")
@@ -217,12 +391,16 @@ class StandaloneChatApp(QMainWindow):
                 )
                 self.subprocesses.append(p_kokoro)
                 print(f"[Python] Processo Kokoro allocato in UTF-8. Diagnostica in: {log_file_path}")
+                self.update_loading(85, "Kokoro TTS in avvio, attesa servizi<span class='dots'></span>", f"Kokoro avviato (log: {log_file_path})", "ok")
             else:
                 print(f"[Python] ERRORE CRITICO: Non trovo l'eseguibile Python in {venv_python}")
+                self.update_loading(85, "Attenzione: Python venv non trovato", f"ERRORE: Python non trovato in {venv_python}", "err")
 
             self.backend_ready = True
+            self.update_loading(95, "Verifica connessione ai servizi<span class='dots'></span>", "Backend pronto. Verifica porte in corso...", "ok")
         except Exception as e:
             print(f"[Python] Errore boot: {e}")
+            self.update_loading(0, "Errore durante l'avvio", f"Errore boot: {e}", "err")
 
     def check_system_status(self):
         if not self.backend_ready: return
@@ -230,8 +408,10 @@ class StandaloneChatApp(QMainWindow):
         a_socket.settimeout(0.3)
         if a_socket.connect_ex(("127.0.0.1", 7860)) == 0:
             print("[Python] Tutto pronto! Servizi online.")
+            self.update_loading(100, "Tutto pronto! Avvio interfaccia...", "Tutti i servizi online. Caricamento UI...", "ok")
             self.connection_timer.stop()
-            self.web_view.setUrl(QUrl(f"http://127.0.0.1:{FRONTEND_PORT}/index.html"))
+            # Breve pausa per mostrare il 100% prima del redirect
+            QTimer.singleShot(600, lambda: self.web_view.setUrl(QUrl(f"http://127.0.0.1:{FRONTEND_PORT}/index.html")))
         a_socket.close()
 
     def handle_permission_requested(self, url, feature):
