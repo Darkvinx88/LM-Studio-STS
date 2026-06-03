@@ -18,7 +18,7 @@ CONFIG_FILE = os.path.join(SCRIPT_DIR, ".sts_config.json")
 
 DEFAULTS = {
     "lms_cli":      "",
-    "model_path":   "llama-3some-8b-v2",
+    "model_path":   "",
     "kokoro_path":  "",
     "frontend_path": SCRIPT_DIR,
     "frontend_port": "8000",
@@ -310,7 +310,7 @@ class SetupWizard(tk.Tk):
 
         fields = [
             ("lms_cli",       "LMS CLI (lms.exe)",     True,  "Executable — usually in ~/.lmstudio/bin/"),
-            ("model_path",    "Model name/path",        False, "As shown in LM Studio (e.g. llama-3some-8b-v2)"),
+            ("model_path",    "Model name/path",        False, "As shown in LM Studio (e.g. Qwen3.5-9B)"),
             ("kokoro_path",   "Kokoro TTS folder",      True,  "Root folder containing gradio_interface.py + venv/"),
             ("frontend_path", "Frontend folder",        True,  "Folder where index.html, serve.py, script.js live"),
         ]
