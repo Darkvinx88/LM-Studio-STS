@@ -802,7 +802,8 @@ class ChatManager {
   }
 
   static scrollToBottom() {
-    elements.chatEl.scrollTop = elements.chatEl.scrollHeight;
+    const chatWrap = elements.chatEl.closest(".chat-wrap") || elements.chatEl.parentElement;
+    if (chatWrap) { chatWrap.scrollTop = chatWrap.scrollHeight; }
   }
 
   static createMessageElement(role, text, typing = false) {
@@ -1343,7 +1344,7 @@ class UIManager {
       elements.stopBtn.setAttribute('aria-label', 'No audio or voice input active');
     }
 
-    elements.promptInput.disabled = isVoskListening || isSendingPrompt;
+    elements.promptInput.disabled = isVoskListening;
     if (isVoskListening) {
       elements.promptInput.placeholder = "Listening...";
     } else if (isSendingPrompt) {
@@ -1423,8 +1424,10 @@ async function sendPrompt(transcribedText = null) {
     typingBubble.classList.remove("typing");
     typingBubble.textContent = assistantResponse;
     typingBubble.removeAttribute('aria-label');
+    ChatManager.scrollToBottom();
 
     elements.promptInput.value = '';
+    elements.promptInput.focus();
     try {
       sessionStorage.removeItem('promptDraft');
     } catch (e) {
@@ -1473,6 +1476,7 @@ async function sendPrompt(transcribedText = null) {
     appState.setState({ isSpeakingOrLoading: false });
     isSendingPrompt = false;
     UIManager.updateSendButtonState(appState);
+    elements.promptInput.focus();
   }
 }
 
@@ -1702,6 +1706,7 @@ function setupVoiceInput() {
     });
     
     elements.promptInput.value = '';
+    elements.promptInput.focus();
     try {
       sessionStorage.removeItem('promptDraft');
     } catch (e) {
