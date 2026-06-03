@@ -2,6 +2,9 @@
 
 A modern web-based frontend for LM Studio that integrates speech-to-text and text-to-speech capabilities, creating a complete voice chat interface.
 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/103c682c-e870-4c82-bddd-7fe3a1c79cb8" />
+
+
 ## Features
 
 - 🎤 **Voice Input**: Vosk-based speech recognition with multiple language support
