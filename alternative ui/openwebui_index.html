@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LM Studio STS Chat</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sometype+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="main-container">
+    <div class="settings-container">
+        <div class="sidebar-header">
+            <span class="sidebar-title">LM Studio STS</span>
+            <div class="sidebar-actions">
+                <button class="icon-button" id="themeBtn" title="Cambia Tema">🌗</button>
+                <button class="icon-button" id="clearBtn" title="Svuota Chat">🗑️</button>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="api-section">
+                <label for="apiUrl">LLM Endpoint</label>
+                <div class="api-row">
+                    <input type="text" id="apiUrl" placeholder="http://127.0.0.1:1234/v1/chat/completions"/>
+                    <button class="button small" id="saveApiBtn">💾</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="apiStatus"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-section">
+                <label for="ttsUrl">TTS Endpoint</label>
+                <div class="api-row">
+                    <input type="text" id="ttsUrl" placeholder="http://127.0.0.1:7860/"/>
+                    <button class="button small" id="saveTtsBtn">💾</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="ttsStatus"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="systemPromptSection" class="api-section">
+                <label for="systemPromptTextarea">System Prompt <span id="presetTitle"></span></label>
+                <textarea id="systemPromptTextarea" placeholder="Inserisci il prompt di sistema..."></textarea>
+                <div class="api-row split-buttons">
+                    <input type="file" id="presetFileInput" accept=".json" style="display: none;" />
+                    <button class="button text-button" id="loadPresetBtn">📂 Carica</button>
+                    <button class="button text-button" id="saveSystemPromptBtn">💾 Salva</button>
+                </div>
+            </div>
+            
+            <div class="api-section row-fields">
+                <div>
+                    <label for="voiceSelect">Voce</label>
+                    <select id="voiceSelect"></select>
+                </div>
+                <div>
+                    <label for="formatSelect">Formato</label>
+                    <select id="formatSelect">
+                        <option value="wav">WAV</option>
+                        <option value="mp3">MP3</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="api-section sliders-section">
+                <div class="compact-control">
+                    <div class="slider-label-row">
+                        <label for="speedRange">Velocità</label>
+                        <span class="value-display" id="speedVal">1</span>
+                    </div>
+                    <input type="range" id="speedRange" min="0.1" max="2" step="0.1" value="1"/>
+                </div>
+                
+                <div class="compact-control">
+                    <div class="slider-label-row">
+                        <label for="volumeRange">Volume</label>
+                        <span class="value-display" id="volumeVal">1</span>
+                    </div>
+                    <input type="range" id="volumeRange" min="0" max="1" step="0.05" value="1"/>
+                </div>
+            </div>
+
+            <div class="api-section">
+                <label for="voskModelUrl">Modello Vosk</label>
+                <div class="api-row">
+                    <select id="voskModelUrl">
+                        <option value="http://localhost:8000/models/vosk-model-small-en-us-0.15.tar.gz">English</option>
+                        <option value="http://localhost:8000/models/vosk-model-small-it-0.22.tar.gz">Italian</option>
+                    </select>
+                    <button class="button small" id="saveVoskModelBtn">💾</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="voskStatus"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="voice-settings">
+                <h4>🎤 Input Vocale</h4>
+                <div class="field-block">
+                    <label for="sttLanguage">Lingua Riconoscimento</label>
+                    <select id="sttLanguage">
+                        <option value="it-IT">Italiano</option>
+                        <option value="en-US">English (US)</option>
+                    </select>
+                </div>
+                <div class="voice-option">
+                    <input type="checkbox" id="continuousListening">
+                    <label for="continuousListening">Ascolto continuo</label>
+                </div>
+                <div class="voice-option">
+                    <input type="checkbox" id="interimResults">
+                    <label for="interimResults">Mostra risultati parziali</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div id="currentModelBox">
+                <span class="model-label">Modello:</span>
+                <em id="modelText">Caricamento...</em>
+            </div>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat" id="chat">
+            </div>
+        
+        <div class="input-container">
+            <div class="input-bar-wrapper">
+                <div class="input-bar">
+                    <textarea id="promptInput" rows="1" placeholder="Invia un messaggio a LM Studio..."></textarea>
+                    <div class="buttons">
+                        <button class="button-circle" id="voiceBtn" aria-label="Input vocale" title="Tieni premuto per registrare">🎤</button>
+                        <button class="button-circle accent" id="sendBtn" aria-label="Invia messaggio" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="19" x2="12" y2="5"></line>
+                                <polyline points="5 12 12 5 19 12"></polyline>
+                            </svg>
+                        </button>
+                        <button class="button-circle error" id="stopBtn" aria-label="Interrompi riproduzione" disabled>⏹</button>
+                    </div>
+                </div>
+                <div class="input-footer-text">L'IA può generare informazioni imprecise. Verifica le risposte importanti.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.5/dist/vosk.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

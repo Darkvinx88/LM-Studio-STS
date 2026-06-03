@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LM Studio STS Chat</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    LM Studio STS Chat
+    <div>
+        <button class="button" id="themeBtn">🌗 Theme</button>
+        <button class="button" id="clearBtn">🗑️ Clear</button>
+    </div>
+</header>
+<div class="main-container">
+    <div class="settings-container">
+        <div class="controls">
+            <div class="api-section">
+                <label for="apiUrl">LLM Endpoint:</label>
+                <div class="api-row">
+                    <input type="text" id="apiUrl" placeholder="http://127.0.0.1:1234/v1/chat/completions"/>
+                    <button class="button small" id="saveApiBtn">💾 Save</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="apiStatus"></div><span>LLM</span>
+                    </div>
+                </div>
+            </div>
+            <div class="api-section">
+                <label for="ttsUrl">TTS Endpoint:</label>
+                <div class="api-row">
+                    <input type="text" id="ttsUrl" placeholder="http://127.0.0.1:7860/"/>
+                    <button class="button small" id="saveTtsBtn">💾 Save</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="ttsStatus"></div><span>TTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="systemPromptSection">
+                <label for="systemPromptTextarea">System Prompt: <span id="presetTitle" style="font-weight: normal; font-style: italic; opacity: 0.7; margin-left: 5px;"></span></label>
+                <textarea id="systemPromptTextarea" placeholder="Enter system prompt..."></textarea>
+                <div class="api-row" style="gap: 5px; margin-top: 5px;">
+                    <input type="file" id="presetFileInput" accept=".json" style="display: none;" />
+                    <button class="button small" id="loadPresetBtn">📂 Load Preset</button>
+                    <button class="button small" id="saveSystemPromptBtn">💾 Save Prompt</button>
+                </div>
+            </div>
+            
+            <label for="voiceSelect">Voice:</label>
+            <select id="voiceSelect"></select>
+            <label for="formatSelect">Audio Format:</label>
+            <select id="formatSelect">
+                <option value="wav">WAV</option>
+                <option value="mp3">MP3</option>
+            </select>
+
+             <div class="compact-control">
+                <label for="speedRange">Speed:</label>
+                <input type="range" id="speedRange" min="0.1" max="2" step="0.1" value="1"/>
+                <span class="value-display" id="speedVal">1</span>
+            </div>
+            
+            <div class="compact-control">
+                <label for="volumeRange">Volume:</label>
+                <input type="range" id="volumeRange" min="0" max="1" step="0.05" value="1"/>
+                <span class="value-display" id="volumeVal">1</span>
+            </div>
+
+            <div class="api-section">
+                <label for="voskModelUrl">Vosk Model:</label>
+                <div class="api-row">
+                    <select id="voskModelUrl">
+                        <option value="http://localhost:8000/models/vosk-model-small-en-us-0.15.tar.gz">English</option>
+                        <option value="http://localhost:8000/models/vosk-model-small-it-0.22.tar.gz">Italian</option>
+                    </select>
+                    <button class="button small" id="saveVoskModelBtn">💾 Save</button>
+                    <div class="service-status">
+                        <div class="status-dot" id="voskStatus"></div><span>Vosk</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="voice-settings">
+                <h4>🎤 Voice Input Settings</h4>
+                <label for="sttLanguage">Recognition Language:</label>
+                <select id="sttLanguage">
+                    <option value="it-IT">Italian</option>
+                    <option value="en-US">English (US)</option>
+                </select>
+                <div class="voice-option">
+                    <input type="checkbox" id="continuousListening">
+                    <label for="continuousListening">Continuous listening</label>
+                </div>
+                <div class="voice-option">
+                    <input type="checkbox" id="interimResults">
+                    <label for="interimResults">Show interim results</label>
+                </div>
+            </div>
+            
+            <div id="currentModelBox"><span>Model in use:</span><em id="modelText">Loading...</em></div>
+        </div>
+        <div id="status"></div>
+    </div>
+    <div class="chat-container">
+        <div class="chat" id="chat"></div>
+        <div class="input-container">
+            <div class="input-bar">
+                <textarea id="promptInput" placeholder="Type your prompt or use voice input…"></textarea>
+                <div class="buttons">
+                    <button class="button" id="voiceBtn" aria-label="Start voice input" title="Hold to record voice">🎤</button>
+                    <button class="button" id="sendBtn" aria-label="Send message" disabled>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                    <button class="button" id="stopBtn" aria-label="Stop speaking" disabled>⏹</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+  <script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.5/dist/vosk.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
