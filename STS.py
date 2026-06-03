@@ -130,8 +130,8 @@ class StandaloneChatApp(QMainWindow):
                 position: fixed;
                 inset: 0;
                 background:
-                  radial-gradient(circle at 20% 80%, rgba(59,130,246,0.08) 0%, transparent 50%),
-                  radial-gradient(circle at 80% 20%, rgba(29,78,216,0.06) 0%, transparent 50%);
+                  radial-gradient(circle at 20% 80%, rgba(29,112,245,0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 20%, rgba(26,86,219,0.06) 0%, transparent 50%);
                 pointer-events: none;
               }
               .container {
@@ -148,7 +148,7 @@ class StandaloneChatApp(QMainWindow):
                 margin-bottom: 10px;
               }
               h2 {
-                color: #3b82f6;
+                color: #1d70f5;
                 font-size: 26px;
                 font-weight: 600;
                 letter-spacing: -0.03em;
@@ -173,7 +173,7 @@ class StandaloneChatApp(QMainWindow):
               #progress-bar {
                 height: 100%;
                 width: 0%;
-                background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+                background: linear-gradient(90deg, #1d70f5, #1a56db);
                 border-radius: 6px;
                 transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
                 position: relative;
@@ -193,7 +193,7 @@ class StandaloneChatApp(QMainWindow):
               #progress-label {
                 text-align: right;
                 font-size: 11px;
-                color: #3b82f6;
+                color: #1d70f5;
                 font-weight: 600;
                 margin-bottom: 20px;
                 font-variant-numeric: tabular-nums;
@@ -218,7 +218,7 @@ class StandaloneChatApp(QMainWindow):
               .log-line.ok   { color: #10b981; }
               .log-line.warn { color: #f59e0b; }
               .log-line.err  { color: #ef4444; }
-              .log-line.info { color: #60a5fa; }
+              .log-line.info { color: #60b4ff; }
               .dots::after {
                 content: '';
                 animation: dots 1.4s steps(4, end) infinite;
@@ -454,7 +454,7 @@ class StandaloneChatApp(QMainWindow):
                 font-size: 14px;
             }
             QPushButton {
-                background-color: #3b82f6;
+                background-color: #1d70f5;
                 color: white;
                 border: none;
                 padding: 6px 20px;
@@ -463,7 +463,7 @@ class StandaloneChatApp(QMainWindow):
                 min-width: 70px;
             }
             QPushButton:hover {
-                background-color: #2563eb;
+                background-color: #1a56db;
             }
             QPushButton[text="No"] {
                 background-color: #374151;
