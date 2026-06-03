@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LM Studio STS Chat</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <span class="logo-text">STS Chat</span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="themeBtn" title="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+      <button class="icon-btn danger" id="clearBtn" title="Clear chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <button class="icon-btn danger" id="shutdownBtn" title="Shutdown all services">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="sidebar-content">
+
+    <!-- Model Status -->
+    <div class="sidebar-section">
+      <div class="model-badge" id="currentModelBox">
+        <div class="model-dot"></div>
+        <span id="modelText">Loading model...</span>
+      </div>
+    </div>
+
+    <!-- Service Status -->
+    <div class="sidebar-section">
+      <div class="section-label">Services</div>
+      <div class="service-pills">
+        <div class="service-pill">
+          <div class="status-dot" id="apiStatus"></div>
+          <span>LLM</span>
+        </div>
+        <div class="service-pill">
+          <div class="status-dot" id="ttsStatus"></div>
+          <span>TTS</span>
+        </div>
+        <div class="service-pill">
+          <div class="status-dot" id="voskStatus"></div>
+          <span>Vosk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endpoints -->
+    <div class="sidebar-section">
+      <div class="section-label">Endpoints</div>
+      
+      <div class="field-group">
+        <label class="field-label" for="apiUrl">LLM Endpoint</label>
+        <div class="field-row">
+          <input type="text" id="apiUrl" class="field-input" placeholder="http://127.0.0.1:1234/v1/chat/completions"/>
+          <button class="save-btn" id="saveApiBtn" title="Save">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="ttsUrl">TTS Endpoint</label>
+        <div class="field-row">
+          <input type="text" id="ttsUrl" class="field-input" placeholder="http://127.0.0.1:7860/"/>
+          <button class="save-btn" id="saveTtsBtn" title="Save">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Prompt -->
+    <div class="sidebar-section">
+      <div class="section-label">
+        System Prompt
+        <span id="presetTitle" class="preset-badge"></span>
+      </div>
+      <textarea id="systemPromptTextarea" class="field-textarea" placeholder="Enter system prompt..."></textarea>
+      <div class="field-row" style="gap:6px; margin-top:6px;">
+        <input type="file" id="presetFileInput" accept=".json" style="display:none"/>
+        <button class="outline-btn" id="loadPresetBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Load Preset
+        </button>
+        <button class="outline-btn" id="saveSystemPromptBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+
+    <!-- Audio Settings -->
+    <div class="sidebar-section">
+      <div class="section-label">Audio</div>
+
+      <div class="field-group">
+        <label class="field-label" for="voiceSelect">Voice</label>
+        <select id="voiceSelect" class="field-select"></select>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="formatSelect">Format</label>
+        <select id="formatSelect" class="field-select">
+          <option value="wav">WAV</option>
+          <option value="mp3">MP3</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <div class="range-header">
+          <label class="field-label" for="speedRange">Speed</label>
+          <span class="range-val" id="speedVal">1.0</span>
+        </div>
+        <input type="range" id="speedRange" class="range-input" min="0.1" max="2" step="0.1" value="1"/>
+      </div>
+
+      <div class="field-group">
+        <div class="range-header">
+          <label class="field-label" for="volumeRange">Volume</label>
+          <span class="range-val" id="volumeVal">1.0</span>
+        </div>
+        <input type="range" id="volumeRange" class="range-input" min="0" max="1" step="0.05" value="1"/>
+      </div>
+    </div>
+
+    <!-- Voice / Vosk Settings -->
+    <div class="sidebar-section">
+      <div class="section-label">Voice Input</div>
+
+      <div class="field-group">
+        <label class="field-label" for="voskModelUrl">Vosk Model</label>
+        <div class="field-row">
+          <select id="voskModelUrl" class="field-select" style="flex:1">
+            <option value="http://localhost:8000/models/vosk-model-small-en-us-0.15.tar.gz">English</option>
+            <option value="http://localhost:8000/models/vosk-model-small-it-0.22.tar.gz">Italian</option>
+          </select>
+          <button class="save-btn" id="saveVoskModelBtn" title="Save">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="sttLanguage">Recognition Language</label>
+        <select id="sttLanguage" class="field-select">
+          <option value="it-IT">Italian</option>
+          <option value="en-US">English (US)</option>
+        </select>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle-label" for="continuousListening">Continuous listening</label>
+        <label class="toggle">
+          <input type="checkbox" id="continuousListening">
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle-label" for="interimResults">Show interim results</label>
+        <label class="toggle">
+          <input type="checkbox" id="interimResults">
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+    </div>
+
+  </div><!-- end sidebar-content -->
+
+  <!-- Status bar -->
+  <div class="sidebar-footer">
+    <div id="status" class="status-bar"></div>
+  </div>
+</aside>
+
+<!-- Main Chat Area -->
+<main class="main">
+  <!-- Mobile header -->
+  <header class="topbar">
+    <button class="icon-btn" id="sidebarToggle" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <span class="topbar-title">LM Studio STS Chat</span>
+    <div class="topbar-model" id="topbarModel"></div>
+  </header>
+
+  <div class="chat-wrap">
+    <div class="chat" id="chat">
+      <!-- Empty state -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h2 class="empty-title">Start a conversation</h2>
+        <p class="empty-sub">Type a message or use voice input to begin</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-panel">
+    <div class="input-box">
+      <textarea id="promptInput" class="chat-input" placeholder="Send a message… (Shift+Enter for new line)" rows="1"></textarea>
+      <div class="input-actions">
+        <button class="action-btn voice" id="voiceBtn" aria-label="Start voice input" title="Hold to record (or Ctrl)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+        <button class="action-btn stop" id="stopBtn" aria-label="Stop speaking" title="Stop" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+          </svg>
+        </button>
+        <button class="action-btn send" id="sendBtn" aria-label="Send message" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <p class="input-hint">Hold <kbd>Ctrl</kbd> to record voice · <kbd>Enter</kbd> to send</p>
+  </div>
+</main>
+
+<!-- Overlay for mobile sidebar -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.5/dist/vosk.js"></script>
+<script type="module" src="script.js"></script>
+<script src="ui-extras.js" defer></script>
+</body>
+</html>
