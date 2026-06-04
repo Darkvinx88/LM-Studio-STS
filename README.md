@@ -28,12 +28,7 @@ Frontend (Web) → LM Studio (LLM) → Kokoro TTS (Speech) ← Vosk (Speech Reco
 3. **Python 3.x**: For running the frontend server
 4. **Modern Browser**: Chrome, Firefox, Safari, or Edge
 
-## LM Studio STS — Installation Guide
- 
-   ```bash
-   git clone https://github.com/yourusername/lm-studio-sts-chat.git
-   cd lm-studio-sts-chat
-   ```
+## LM Studio STS — Installation Guid
 
 ## Requirements
 
@@ -44,7 +39,15 @@ Frontend (Web) → LM Studio (LLM) → Kokoro TTS (Speech) ← Vosk (Speech Reco
 No extra pip packages needed for the wizard or the server.
 
 ---
+1. **Clone the repository**
+   
+   
+   ```bash
+   git clone https://github.com/yourusername/lm-studio-sts-chat.git
+   cd lm-studio-sts-chat
+   ```
 
+   
 2. **Double-click `setup_wizard.py`** (or run `python setup_wizard.py`).
 
 3. Fill in the 4 paths using the **Browse** buttons:
