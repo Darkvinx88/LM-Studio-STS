@@ -7,13 +7,13 @@ A modern web-based frontend for LM Studio that integrates speech-to-text and tex
 
 ## Features
 
-- 🎤 **Voice Input**: Vosk-based speech recognition with multiple language support
-- 🗣️ **Voice Output**: Kokoro TTS integration for natural speech synthesis
-- 🤖 **LLM Integration**: Connects to LM Studio for AI responses
-- 💬 **Chat Interface**: Modern, responsive chat UI with message history
-- 🎨 **Multiple Themes**: Customizable themes (Material, Grey, Blue, Violet, Original)
-- ⚙️ **Advanced Settings**: Configurable voice parameters, system prompts, and API endpoints
-- 🔄 **Real-time Status**: Health monitoring for all connected services
+- **Voice Input**: Vosk-based speech recognition with multiple language support
+- **Voice Output**: Kokoro TTS integration for natural speech synthesis
+- **Chat Prompts**: load Lm studio saved chat json prompts in the interface directly
+- **LLM Integration**: Connects to LM Studio for AI responses
+- **Chat Interface**: Modern, responsive chat UI with message history
+- **Advanced Settings**: Configurable voice parameters, system prompts, and API endpoints
+- **Real-time Status**: Health monitoring for all connected services
 
 ## Architecture
 
@@ -28,31 +28,22 @@ Frontend (Web) → LM Studio (LLM) → Kokoro TTS (Speech) ← Vosk (Speech Reco
 3. **Python 3.x**: For running the frontend server
 4. **Modern Browser**: Chrome, Firefox, Safari, or Edge
 
-## Quick Start
-
-### Option 1: Using the Launcher (Recommended)
-
-1. Clone this repository:
+## LM Studio STS — Installation Guide
+ 
    ```bash
    git clone https://github.com/yourusername/lm-studio-sts-chat.git
    cd lm-studio-sts-chat
    ```
 
-# LM Studio STS — Installation Guide
-
 ## Requirements
 
 - Python 3.8+ (standard install — tkinter is included)
 - [LM Studio](https://lmstudio.ai/) with CLI (`lms.exe`)
-- [Kokoro TTS Local](https://github.com/remsky/Kokoro-82M) with a Python venv set up
+- [Kokoro TTS Local](https://github.com/PierrunoYT/Kokoro-TTS-Local) with a Python venv set up
 
 No extra pip packages needed for the wizard or the server.
 
 ---
-
-## Quick Start
-
-1. **Clone or download** this repository into any folder on your PC.
 
 2. **Double-click `setup_wizard.py`** (or run `python setup_wizard.py`).
 
@@ -81,6 +72,8 @@ Your settings are saved in `.sts_config.json` — next time the wizard opens pre
 3. Starts Kokoro TTS (`gradio_interface.py`)
 4. Starts the static frontend server (`serve.py`)
 5. Opens the browser at `http://localhost:8000`
+6. Vosk speech to text model shoul load automatically (make sure to place the models into their models folder in zip format)
+7. You can now chat in text or with voice by pressinng `Ctrl` on your keyboard or the microphone button. 
 
 ---
 
@@ -122,14 +115,14 @@ Configure the following in the settings panel:
 
 ### Speech Recognition
 
-- **Languages**: English (US), Italian
+- **Languages**: English (US), Italian,
 - **Continuous Listening**: Toggle for always-on recognition
 - **Interim Results**: Show partial recognition results
 
 ## Usage
 
 1. **Text Chat**: Type messages and press Enter or click Send
-2. **Voice Chat**: Hold the microphone button to record voice input
+2. **Voice Chat**: Hold the microphone button or `ctrl` to record voice input
 3. **Settings**: Configure endpoints, voice parameters, and system prompts
 4. **Themes**: Switch between different visual themes
 5. **Clear Chat**: Remove conversation history and start fresh
@@ -174,25 +167,6 @@ const result = await client.predict('/generate_tts_with_logs', {
 - **Green Dot**: Service is healthy and responding
 - **Red Dot**: Service is unreachable or error occurred
 - **Yellow Dot**: Service is checking or starting up
-
-## Development
-
-### Local Development
-
-1. Clone the repository
-2. Start a local HTTP server:
-   ```bash
-   python -m http.server 8000
-   ```
-3. Open `http://localhost:8000` in your browser
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
 ## License
 
