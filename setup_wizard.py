@@ -131,8 +131,10 @@ if not exist "venv\Scripts\activate.bat" (
 call venv\Scripts\activate
 echo %INFO%Starting Kokoro TTS in background...
 start /B "" python gradio_interface.py
-echo %SUCCESS%Kokoro TTS started
-echo %date% %time% - Kokoro TTS started >> "%LOG_FILE%"
+timeout /t 1 >nul
+for /f %%i in ('powershell -NoProfile -Command "(Get-Process python -ErrorAction SilentlyContinue | Sort-Object StartTime -Descending | Select-Object -First 1).Id"') do set "KOKORO_PID=%%i"
+echo %SUCCESS%Kokoro TTS started (PID: %KOKORO_PID%)
+echo %date% %time% - Kokoro TTS started PID=%KOKORO_PID% >> "%LOG_FILE%"
 
 call :wait_with_progress 3 "Kokoro TTS initialization"
 
@@ -195,8 +197,10 @@ echo %INFO%Stopping frontend (port %FRONTEND_PORT%)...
 for /f "tokens=5" %%a in ('netstat -ano ^| find ":%FRONTEND_PORT%" ^| find "LISTENING"') do taskkill /f /pid %%a >nul 2>&1
 echo %SUCCESS%Frontend stopped
 
-echo %INFO%Stopping Kokoro TTS (port 7860)...
-for /f "tokens=5" %%a in ('netstat -ano ^| find ":7860" ^| find "LISTENING"') do taskkill /f /pid %%a >nul 2>&1
+echo %INFO%Stopping Kokoro TTS...
+if not "%KOKORO_PID%"=="" taskkill /f /t /pid %KOKORO_PID% >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| find ":7860" ^| find "LISTENING"') do taskkill /f /t /pid %%a >nul 2>&1
+powershell -Command "Get-WmiObject Win32_Process -Filter 'name=\'python.exe\'' | Where-Object {{ $_.CommandLine -like '*gradio_interface*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}" >nul 2>&1
 echo %SUCCESS%Kokoro TTS stopped
 
 echo.
@@ -240,7 +244,7 @@ goto :eof
 echo.
 echo ================================
 echo   Launcher failed with errors
-echo ================================
+================================
 pause
 exit /b 1
 
