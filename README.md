@@ -43,8 +43,8 @@ No extra pip packages needed for the wizard or the server.
    
    
    ```bash
-   git clone https://github.com/yourusername/lm-studio-sts-chat.git
-   cd lm-studio-sts-chat
+   git clone https://github.com/Darkvinx88/LM-Studio-STS.git
+   cd LM-Studio-STS
    ```
 
    
