@@ -612,6 +612,44 @@ class MemoryManager {
   }
 }
 
+// Token Counter
+class TokenCounter {
+  static sessionTotal = { prompt: 0, completion: 0, total: 0 };
+
+  static update(usage) {
+    if (!usage) return;
+    this.sessionTotal.prompt     += usage.prompt_tokens     || 0;
+    this.sessionTotal.completion += usage.completion_tokens || 0;
+    this.sessionTotal.total      += usage.total_tokens      || 0;
+
+    const el = document.getElementById('tokenCounter');
+    if (!el) return;
+
+    const estMark = usage.estimated
+      ? `<span class="tok-sep" title="Estimated">~</span>`
+      : '';
+    el.innerHTML =
+      `<span class="tok-label">Last</span>` +
+      `<span class="tok-val">${(usage.prompt_tokens||0).toLocaleString()}</span>` +
+      `<span class="tok-sep">&#8593;</span>` +
+      `<span class="tok-val">${(usage.completion_tokens||0).toLocaleString()}</span>` +
+      `<span class="tok-sep">&#8595;</span>${estMark}` +
+      `<span class="tok-sep" style="margin:0 6px">&middot;</span>` +
+      `<span class="tok-label">Session</span>` +
+      `<span class="tok-val">${this.sessionTotal.total.toLocaleString()}</span>`;
+    el.removeAttribute('data-empty');
+  }
+
+  static reset() {
+    this.sessionTotal = { prompt: 0, completion: 0, total: 0 };
+    const el = document.getElementById('tokenCounter');
+    if (el) {
+      el.innerHTML = '';
+      el.setAttribute('data-empty', 'true');
+    }
+  }
+}
+
 // Initialize managers
 const appState = new AppState();
 const statusManager = new StatusManager(document.getElementById("status"));
@@ -790,10 +828,8 @@ class ChatManager {
       localStorage.removeItem("chatHistory");
       localStorage.removeItem("conversationHistory");
       elements.chatEl.innerHTML = "";
-      
-      // Clear conversation history from app state
       appState.setState({ conversationHistory: [] });
-      
+      TokenCounter.reset();
       statusManager.setStatus("Chat cleared", 'success', 2000);
     } catch (error) {
       console.error('Failed to clear chat:', error);
@@ -821,7 +857,7 @@ class ChatManager {
     bubble.className = "bubble";
     
     if (typing) {
-      bubble.classList.add("typing");
+      bubble.classList.add("typing-indicator");
       bubble.innerHTML = "<span></span><span></span><span></span>";
       bubble.setAttribute('aria-label', 'AI is typing');
     } else {
@@ -958,40 +994,43 @@ class ApiManager {
     }
   }
 
-  static async sendMessage(userMessage, appState) {
+  static async sendMessage(userMessage, appState, onChunk) {
     const state = appState.getState();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
-    
+
+    // Store controller so Stop button can abort the stream
+    ApiManager._currentController = controller;
+
     try {
       const messages = [];
-      
+
       const systemPrompt = elements.systemPromptTextarea.value.trim();
       if (systemPrompt) {
-        messages.push({ 
-          role: "system", 
-          content: InputValidator.sanitizeInput(systemPrompt) 
+        messages.push({
+          role: "system",
+          content: InputValidator.sanitizeInput(systemPrompt)
         });
       }
-      
+
       const recentHistory = state.conversationHistory.slice(-state.maxContextMessages);
       messages.push(...recentHistory);
-      
-      messages.push({ 
-        role: "user", 
-        content: InputValidator.sanitizeInput(userMessage) 
+
+      messages.push({
+        role: "user",
+        content: InputValidator.sanitizeInput(userMessage)
       });
 
       const response = await fetch(state.currentApiUrl, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json"
+          "Accept": "text/event-stream"
         },
         body: JSON.stringify({
           model: "local-model",
           messages: messages,
-          stream: false,
+          stream: true,
           max_tokens: 2048,
           temperature: 0.7
         }),
@@ -1003,32 +1042,87 @@ class ApiManager {
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
-      const data = await response.json();
-      
-      if (!data.choices?.[0]?.message) {
-        throw new Error('Invalid response format from API');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let usage = null;
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last (possibly incomplete) line in the buffer
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(data);
+
+            // Capture usage if the server sends it (some send it on the last chunk)
+            if (parsed.usage) usage = parsed.usage;
+
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              if (typeof onChunk === 'function') onChunk(delta, fullText);
+            }
+          } catch {
+            // Malformed chunk — skip
+          }
+        }
+
+        // Check if the caller requested cancellation
+        const currentState = appState.getState();
+        if (currentState.audioIsStopped) break;
       }
-      
-      const assistantResponse = data.choices[0].message.content || "No response content";
-      
+
+      // Save history
       const newHistory = [...state.conversationHistory];
       newHistory.push({ role: "user", content: InputValidator.sanitizeInput(userMessage) });
-      newHistory.push({ role: "assistant", content: assistantResponse });
-      
+      newHistory.push({ role: "assistant", content: fullText });
       const trimmedHistory = newHistory.slice(-state.maxContextMessages);
-      
       appState.setState({ conversationHistory: trimmedHistory });
-      
+
       try {
         localStorage.setItem("conversationHistory", JSON.stringify(trimmedHistory));
       } catch (error) {
         console.warn('Failed to save conversation history:', error);
       }
-      
-      return assistantResponse;
-      
+
+      // Estimate token count if the API didn't return usage
+      if (!usage) {
+        const estimatedPromptTokens = messages.reduce((acc, m) =>
+          acc + Math.ceil((m.content || '').length / 4), 0);
+        const estimatedCompletionTokens = Math.ceil(fullText.length / 4);
+        usage = {
+          prompt_tokens: estimatedPromptTokens,
+          completion_tokens: estimatedCompletionTokens,
+          total_tokens: estimatedPromptTokens + estimatedCompletionTokens,
+          estimated: true
+        };
+      }
+
+      return { text: fullText, usage };
+
     } finally {
       clearTimeout(timeout);
+      ApiManager._currentController = null;
+    }
+  }
+
+  static abortCurrent() {
+    if (ApiManager._currentController) {
+      ApiManager._currentController.abort();
+      ApiManager._currentController = null;
     }
   }
 }
@@ -1412,18 +1506,30 @@ async function sendPrompt(transcribedText = null) {
   try {
     statusManager.setLoadingStatus("Getting AI response...");
 
-    const assistantResponse = await ApiManager.sendMessage(prompt, appState);
+    // Keep typing indicator until response is complete
+    let assistantResponse = '';
+
+    const { text, usage } = await ApiManager.sendMessage(prompt, appState, (delta, fullText) => {
+      assistantResponse = fullText;
+    });
+
+    // Remove typing indicator and show full response at once
+    typingBubble.classList.remove("typing-indicator");
+    typingBubble.removeAttribute('aria-label');
+    typingBubble.textContent = assistantResponse;
+    ChatManager.scrollToBottom();
+
+    // Update token counter
+    TokenCounter.update(usage);
 
     const currentState = appState.getState();
     if (currentState.audioIsStopped) {
       console.log('sendPrompt: Operation cancelled, cleaning up');
-      typingBubble.remove();
+      if (!assistantResponse) typingBubble.closest('.message')?.remove();
       return;
     }
 
-    typingBubble.classList.remove("typing");
     typingBubble.textContent = assistantResponse;
-    typingBubble.removeAttribute('aria-label');
     ChatManager.scrollToBottom();
 
     elements.promptInput.value = '';
@@ -1465,7 +1571,7 @@ async function sendPrompt(transcribedText = null) {
     console.error('Send prompt error:', error);
     const errorMsg = ErrorHandler.getErrorMessage(error);
 
-    const typingBubbles = document.querySelectorAll('.bubble.typing');
+    const typingBubbles = document.querySelectorAll('.bubble.typing-indicator');
     typingBubbles.forEach(bubble => bubble.remove());
     
     ChatManager.createMessageElement("assistant", `Error: ${errorMsg}`);
@@ -1494,6 +1600,7 @@ function setupEventHandlers() {
 
   elements.stopBtn.addEventListener('click', () => {
     console.log('Stop button clicked');
+    ApiManager.abortCurrent();
     AudioManager.stopCurrentAudio(appState);
     
     const state = appState.getState();
