@@ -709,6 +709,17 @@ body {
   padding: 1px 5px;
 }
 
+/* Streaming cursor blink while text arrives */
+.bubble.streaming::after {
+  content: '▋';
+  display: inline-block;
+  animation: cur-blink .7s steps(1) infinite;
+  opacity: .8;
+  margin-left: 1px;
+  color: var(--accent);
+}
+@keyframes cur-blink { 0%,100%{opacity:.8} 50%{opacity:0} }
+
 /* ============================================================
    INPUT PANEL
    ============================================================ */
@@ -725,15 +736,83 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  transition: border-color var(--fast), box-shadow var(--fast);
+  overflow: hidden;
+}
+
+/* Token counter — subtle top strip inside the input box */
+.token-counter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 5px 16px 4px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 0;
+  transition: opacity var(--normal);
+  line-height: 1;
+}
+
+/* Hide counter when empty / not yet populated */
+.token-counter:empty,
+.token-counter[data-empty="true"] {
+  display: none;
+}
+
+.tok-label {
+  font-family: var(--font);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  color: #ffffff;
+}
+
+.tok-val {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.tok-val.warn {
+  color: #ffffff;
+}
+
+.tok-val.danger {
+  color: #ffffff;
+}
+
+.tok-sep {
+  opacity: 0.35;
+  margin: 0 1px;
+  color: #ffffff;
+}
+
+/* Inner row: textarea + action buttons */
+.input-inner {
+  display: flex;
   align-items: flex-end;
   gap: 8px;
   padding: 10px 10px 10px 16px;
-  transition: border-color var(--fast), box-shadow var(--fast);
 }
 
 .input-box:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* When focused, dim the counter slightly to step back */
+.input-box:focus-within .token-counter {
+  opacity: 0.7;
 }
 
 .chat-input {
@@ -760,6 +839,7 @@ body {
   gap: 4px;
   align-items: flex-end;
   flex-shrink: 0;
+  padding-bottom: 0;
 }
 
 /* Action buttons */
@@ -868,6 +948,8 @@ body {
   .topbar { display: flex; }
   .chat { padding: 20px 16px 12px; }
   .input-panel { padding: 12px 16px 16px; }
+  .input-inner { padding: 8px 8px 8px 12px; }
+  .token-counter { padding: 4px 12px 3px; }
   .message.user .bubble { max-width: 88%; }
   .message.assistant .bubble { max-width: 98%; }
 }
