@@ -4,6 +4,16 @@ A modern web-based frontend for LM Studio that integrates speech-to-text and tex
 
 <img width="1920" height="1080" alt="Screenshot (434)" src="https://github.com/user-attachments/assets/be24edd5-5438-4831-b03a-360a37efa2c9" />
 
+Main UI
+
+
+<img width="415" height="541" alt="image" src="https://github.com/user-attachments/assets/c1c3f9e7-7323-41b4-b3fc-20cfbdff83c7" />
+
+
+
+Setup Wizard
+
+
 
 
 ## Features
