@@ -32,6 +32,8 @@ class AppState {
       retryAttempts: { api: 0, tts: 0 },
       healthStatus: { api: 'unknown', tts: 'unknown', vosk: 'unknown' },
       audioIsStopped: false,
+      currentModel: null,
+      availableModels: [],
       conversationHistory: [],
       maxContextMessages: 20,
       voiceRecognition: {
@@ -983,7 +985,12 @@ class ApiManager {
       }, 2);
 
       if (result.data?.length > 0) {
-        elements.modelText.textContent = result.data[0].id;
+        const models = result.data.map(m => m.id);
+        const savedModel = appState.getState().currentModel;
+        const activeModel = (savedModel && models.includes(savedModel)) ? savedModel : models[0];
+        appState.setState({ availableModels: models, currentModel: activeModel });
+        elements.modelText.textContent = activeModel;
+        ModelDropdown.populate(models, activeModel);
       } else {
         elements.modelText.textContent = "non disponibile";
       }
@@ -1028,7 +1035,7 @@ class ApiManager {
           "Accept": "text/event-stream"
         },
         body: JSON.stringify({
-          model: "local-model",
+          model: state.currentModel || "local-model",
           messages: messages,
           stream: true,
           max_tokens: 2048,
@@ -1398,10 +1405,11 @@ class UIManager {
     const hasTtsUrl = !!state.currentTtsUrl;
     const isVoskListening = state.voiceRecognition.isListening || state.voiceRecognition.isProcessing;
     
+    const audioEnabled = window.audioEnabled !== false;
     const shouldDisableSend = state.isSpeakingOrLoading || 
                              isSendingPrompt || 
                              !hasApiUrl || 
-                             !hasTtsUrl || 
+                             (audioEnabled && !hasTtsUrl) || 
                              (!hasText && !isVoskListening);
     
     const shouldDisableStop = !state.isSpeakingOrLoading && 
@@ -1424,8 +1432,8 @@ class UIManager {
       elements.sendBtn.setAttribute('aria-label', 'Sending message...');
     } else if (state.isSpeakingOrLoading) {
       elements.sendBtn.setAttribute('aria-label', 'Processing... Use stop button to cancel');
-    } else if (!hasApiUrl || !hasTtsUrl) {
-      elements.sendBtn.setAttribute('aria-label', 'Configure API and TTS endpoints first');
+    } else if (!hasApiUrl || (audioEnabled && !hasTtsUrl)) {
+      elements.sendBtn.setAttribute('aria-label', audioEnabled && !hasTtsUrl ? 'Configure TTS endpoint or disable audio' : 'Configure API endpoint first');
     } else if (!hasText && !isVoskListening) {
       elements.sendBtn.setAttribute('aria-label', 'Enter a message or start voice input to send');
     } else {
@@ -1540,29 +1548,34 @@ async function sendPrompt(transcribedText = null) {
       console.warn('Error clearing prompt draft:', e);
     }
 
-    statusManager.setStatus("Response received, generating speech...", 'info');
+    if (window.audioEnabled === false) {
+      // Audio is disabled — skip TTS/playback entirely
+      statusManager.setStatus("Response received", 'success', 2000);
+    } else {
+      statusManager.setStatus("Response received, generating speech...", 'info');
 
-    try {
-      const currentState2 = appState.getState();
-      if (currentState2.audioIsStopped) {
-        console.log('sendPrompt: TTS cancelled before generation');
-        return;
+      try {
+        const currentState2 = appState.getState();
+        if (currentState2.audioIsStopped) {
+          console.log('sendPrompt: TTS cancelled before generation');
+          return;
+        }
+
+        const audioUrl = await TTSManager.generateSpeech(assistantResponse, appState);
+
+        const currentState3 = appState.getState();
+        if (currentState3.audioIsStopped) {
+          console.log('sendPrompt: Audio cancelled before playback');
+          return;
+        }
+
+        await AudioManager.playAudio(audioUrl, appState);
+        
+      } catch (ttsError) {
+        console.error('TTS Error:', ttsError);
+        const errorMsg = ErrorHandler.getErrorMessage(ttsError);
+        statusManager.setStatus(`TTS failed: ${errorMsg}`, 'error', 5000);
       }
-
-      const audioUrl = await TTSManager.generateSpeech(assistantResponse, appState);
-
-      const currentState3 = appState.getState();
-      if (currentState3.audioIsStopped) {
-        console.log('sendPrompt: Audio cancelled before playback');
-        return;
-      }
-
-      await AudioManager.playAudio(audioUrl, appState);
-      
-    } catch (ttsError) {
-      console.error('TTS Error:', ttsError);
-      const errorMsg = ErrorHandler.getErrorMessage(ttsError);
-      statusManager.setStatus(`TTS failed: ${errorMsg}`, 'error', 5000);
     }
 
     ChatManager.save();
@@ -1762,6 +1775,21 @@ function setupEventHandlers() {
     statusManager.setStatus('Theme updated', 'success', 1000);
   });
 
+  // Model dropdown toggle
+  elements.currentModelBox.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (ModelDropdown._switching) return;
+    ModelDropdown.toggle();
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('modelDropdownWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      ModelDropdown.close();
+    }
+  });
+
   elements.promptInput.addEventListener('keydown', (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -1923,6 +1951,306 @@ function updateVoskStatusDot() {
     } else {
       voskStatusDot.className = 'status-dot';
     }
+  }
+}
+
+// Model Dropdown Manager
+class ModelDropdown {
+  static _open = false;
+  static _switching = false;
+
+  static populate(models, activeModel) {
+    const dropdown = document.getElementById('modelDropdown');
+    if (!dropdown) return;
+    dropdown.innerHTML = '';
+    models.forEach(id => {
+      const item = document.createElement('button');
+      item.className = 'model-dropdown-item' + (id === activeModel ? ' active' : '');
+      item.title = id;
+      item.innerHTML = `<span class="mdi-label">${id}</span>`;
+      if (id === activeModel) {
+        item.innerHTML += `<span class="mdi-check">✓</span>`;
+      }
+      item.addEventListener('click', () => {
+        if (this._switching) return;
+        if (id === appState.getState().currentModel) {
+          this.close();
+          return;
+        }
+        this.close();
+        this.switchModel(id);
+      });
+      dropdown.appendChild(item);
+    });
+  }
+
+  static async switchModel(newModelId) {
+    if (this._switching) return;
+    this._switching = true;
+
+    const state = appState.getState();
+    const oldModelId = state.currentModel;
+
+    // Derive base URL from the configured API endpoint
+    let baseUrl;
+    try {
+      const u = new URL(state.currentApiUrl);
+      baseUrl = `${u.protocol}//${u.host}`;
+    } catch {
+      statusManager.setStatus('URL API non valido', 'error', 3000);
+      this._switching = false;
+      return;
+    }
+
+    // Show loading overlay
+    ModelProgress.show(oldModelId, newModelId);
+    elements.currentModelBox.classList.add('switching');
+
+    try {
+      // 1. Unload current model (get instance_id first from v0 models list)
+      if (oldModelId) {
+        ModelProgress.setPhase('unload', oldModelId);
+        let instanceId = oldModelId;
+        try {
+          const modelsRes = await fetch(`${baseUrl}/api/v0/models`, { method: 'GET' });
+          if (modelsRes.ok) {
+            const modelsData = await modelsRes.json();
+            const loaded = modelsData.data?.find(m => m.id === oldModelId && m.state === 'loaded');
+            if (loaded?.instance_id) instanceId = loaded.instance_id;
+          }
+        } catch { /* use model id as fallback */ }
+
+        try {
+          await fetch(`${baseUrl}/api/v1/models/unload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instance_id: instanceId })
+          });
+        } catch (e) {
+          console.warn('Unload failed (continuing anyway):', e);
+        }
+        ModelProgress.setPhase('unloaded', oldModelId);
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      // 2. Load new model — this call is synchronous (blocks until loaded)
+      // Poll /api/v0/models in parallel to show state changes
+      ModelProgress.setPhase('load', newModelId);
+      const loadStart = Date.now();
+
+      // Start polling for visual feedback
+      const pollStop = ModelProgress.startPolling(baseUrl, newModelId, loadStart);
+
+      // Fire the actual load request
+      const loadRes = await fetch(`${baseUrl}/api/v1/models/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: newModelId })
+      });
+
+      pollStop();
+
+      if (!loadRes.ok) {
+        const errText = await loadRes.text().catch(() => '');
+        throw new Error(`Load HTTP ${loadRes.status}: ${errText}`);
+      }
+
+      const loadData = await loadRes.json();
+      const loadSec = loadData.load_time_seconds
+        ? `${loadData.load_time_seconds.toFixed(1)}s`
+        : `${((Date.now() - loadStart) / 1000).toFixed(1)}s`;
+
+      // 3. Update state & UI
+      appState.setState({ currentModel: newModelId });
+      elements.modelText.textContent = newModelId;
+      const topbarModel = document.getElementById('topbarModel');
+      if (topbarModel) topbarModel.textContent = newModelId;
+
+      // Refresh model list to get updated states
+      await ApiManager.fetchCurrentModel(appState);
+
+      ModelProgress.setPhase('done', newModelId, loadSec);
+      await new Promise(r => setTimeout(r, 1200));
+      ModelProgress.hide();
+      statusManager.setStatus(`Model loaded in ${loadSec}`, 'success', 3000);
+
+    } catch (err) {
+      console.error('Model switch error:', err);
+      ModelProgress.setPhase('error', newModelId, err.message);
+      await new Promise(r => setTimeout(r, 2500));
+      ModelProgress.hide();
+      statusManager.setStatus(`Loading Error: ${err.message}`, 'error', 5000);
+      // Restore old model in UI
+      elements.modelText.textContent = oldModelId || 'Errore';
+    } finally {
+      this._switching = false;
+      elements.currentModelBox.classList.remove('switching');
+    }
+  }
+
+  static toggle() {
+    if (this._switching) return;
+    const wrap = document.getElementById('modelDropdownWrap');
+    if (!wrap) return;
+    this._open ? this.close() : this.open();
+  }
+
+  static open() {
+    const wrap = document.getElementById('modelDropdownWrap');
+    if (!wrap) return;
+    wrap.classList.add('open');
+    this._open = true;
+    const state = appState.getState();
+    if (state.availableModels.length > 0) {
+      this.populate(state.availableModels, state.currentModel);
+    }
+  }
+
+  static close() {
+    const wrap = document.getElementById('modelDropdownWrap');
+    if (!wrap) return;
+    wrap.classList.remove('open');
+    this._open = false;
+  }
+}
+
+// Model Load Progress Overlay
+class ModelProgress {
+  static _pollInterval = null;
+
+  static show(oldModel, newModel) {
+    let overlay = document.getElementById('modelProgressOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'modelProgressOverlay';
+      overlay.className = 'model-progress-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="model-progress-card">
+        <div class="mp-header">
+          <div class="mp-spinner"></div>
+          <span class="mp-title">Changing Model</span>
+        </div>
+        <div class="mp-steps">
+          <div class="mp-step unload-step" id="mpStepUnload">
+            <div class="mp-step-dot"></div>
+            <div class="mp-step-body">
+              <div class="mp-step-label">Unload</div>
+              <div class="mp-step-detail" id="mpDetailUnload">${oldModel || '—'}</div>
+            </div>
+          </div>
+          <div class="mp-step" id="mpStepLoad">
+            <div class="mp-step-dot"></div>
+            <div class="mp-step-body">
+              <div class="mp-step-label">Load</div>
+              <div class="mp-step-detail" id="mpDetailLoad">${newModel}</div>
+            </div>
+          </div>
+        </div>
+        <div class="mp-status" id="mpStatus">Preparing...</div>
+        <div class="mp-bar-wrap"><div class="mp-bar" id="mpBar"></div></div>
+        <div class="mp-elapsed" id="mpElapsed"></div>
+      </div>`;
+    overlay.classList.add('visible');
+  }
+
+  static hide() {
+    const overlay = document.getElementById('modelProgressOverlay');
+    if (overlay) {
+      overlay.classList.remove('visible');
+      setTimeout(() => overlay.remove(), 300);
+    }
+  }
+
+  static setPhase(phase, modelId, extra = '') {
+    const statusEl = document.getElementById('mpStatus');
+    const barEl = document.getElementById('mpBar');
+    const stepUnload = document.getElementById('mpStepUnload');
+    const stepLoad = document.getElementById('mpStepLoad');
+
+    const setStep = (el, state) => {
+      if (!el) return;
+      el.className = 'mp-step ' + state;
+    };
+
+    switch (phase) {
+      case 'unload':
+        if (statusEl) statusEl.textContent = `Unloading ${modelId}...`;
+        if (barEl) barEl.style.width = '15%';
+        setStep(stepUnload, 'active');
+        setStep(stepLoad, '');
+        break;
+      case 'unloaded':
+        if (statusEl) statusEl.textContent = 'Model Unloaded';
+        if (barEl) barEl.style.width = '30%';
+        setStep(stepUnload, 'done');
+        break;
+      case 'load':
+        if (statusEl) statusEl.textContent = `Loading ${modelId}...`;
+        if (barEl) barEl.style.width = '35%';
+        setStep(stepUnload, 'done');
+        setStep(stepLoad, 'active');
+        break;
+      case 'done':
+        if (statusEl) statusEl.textContent = `Ready in ${extra}`;
+        if (barEl) barEl.style.width = '100%';
+        setStep(stepUnload, 'done');
+        setStep(stepLoad, 'done');
+        const header = document.querySelector('.mp-header .mp-spinner');
+        if (header) {
+          header.outerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+        }
+        break;
+      case 'error':
+        if (statusEl) { statusEl.textContent = `Errore: ${extra}`; statusEl.style.color = 'var(--error)'; }
+        if (barEl) { barEl.style.width = '100%'; barEl.style.background = 'var(--error)'; }
+        break;
+    }
+  }
+
+  static startPolling(baseUrl, modelId, startTime) {
+    let lastState = '';
+    const elapsedEl = document.getElementById('mpElapsed');
+    const barEl = document.getElementById('mpBar');
+
+    // Elapsed timer
+    const timerInterval = setInterval(() => {
+      const sec = ((Date.now() - startTime) / 1000).toFixed(1);
+      if (elapsedEl) elapsedEl.textContent = `${sec}s`;
+    }, 200);
+
+    // Pulse bar animation while loading (35% → 90%, never reaching 100 until done)
+    let barPct = 35;
+    const barInterval = setInterval(() => {
+      barPct = Math.min(barPct + (90 - barPct) * 0.04, 89);
+      if (barEl && barEl.style.width !== '100%') {
+        barEl.style.width = barPct + '%';
+      }
+    }, 400);
+
+    // Poll model state
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/v0/models`, { method: 'GET' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const model = data.data?.find(m => m.id === modelId);
+        if (model && model.state !== lastState) {
+          lastState = model.state;
+          const statusEl = document.getElementById('mpStatus');
+          if (statusEl && model.state === 'loading') {
+            statusEl.textContent = `Loading in progress (${model.state})...`;
+          }
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+
+    return () => {
+      clearInterval(timerInterval);
+      clearInterval(barInterval);
+      clearInterval(pollInterval);
+    };
   }
 }
 
