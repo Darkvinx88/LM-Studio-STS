@@ -20,10 +20,9 @@ Setup Wizard
 
 - **Voice Input**: Vosk-based speech recognition with multiple language support
 - **Voice Output**: Kokoro TTS integration for natural speech synthesis
-- **Chat Prompts**: load Lm studio saved chat json prompts in the interface directly
+- **Fully Compatible with LMStudio chat prompts**: The UI can load LM studio chat prompts found in `C:\Users\user\.lmstudio\config-presets`
 - **LLM Integration**: Connects to LM Studio for AI responses
 - **Chat Interface**: Modern, responsive chat UI with message history
-- **Fully Compatible with LMStudio prompts**: The UI can load LM studio Prompt Presets found in `C:\Users\user\.lmstudio\config-presets`
 - **Advanced Settings**: Configurable voice parameters, system prompts, and API endpoints
 - **Real-time Status**: Health monitoring for all connected services
 - **Change Models from UI**: Change your LM studio models directly from the UI
