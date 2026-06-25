@@ -2,7 +2,8 @@
 
 A modern web-based frontend for LM Studio that integrates speech-to-text and text-to-speech capabilities, creating a complete voice chat interface.
 
-<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/103c682c-e870-4c82-bddd-7fe3a1c79cb8" />
+<img width="1920" height="1080" alt="Screenshot (434)" src="https://github.com/user-attachments/assets/be24edd5-5438-4831-b03a-360a37efa2c9" />
+
 
 
 ## Features
@@ -14,6 +15,9 @@ A modern web-based frontend for LM Studio that integrates speech-to-text and tex
 - **Chat Interface**: Modern, responsive chat UI with message history
 - **Advanced Settings**: Configurable voice parameters, system prompts, and API endpoints
 - **Real-time Status**: Health monitoring for all connected services
+- **Change Models from UI**: Change your LM studio models directly from the UI
+- **Audio On/Off**: Bypass completly the text-to-speech pipeline if wanted
+- **Shutdown and Cleanup**: Shut everything down and clean temporary files with one click directly from the interface
 
 ## Architecture
 
