@@ -58,6 +58,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { once: false });
   }
 
+  // ── Audio toggle ─────────────────────────────────────────────
+  const audioToggleBtn = document.getElementById('audioToggleBtn');
+  const audioSection   = audioToggleBtn?.closest('.sidebar-section');
+  const AUDIO_KEY      = 'sts_audio_enabled';
+
+  // window.audioEnabled is read by script.js before each TTS call
+  function applyAudioState(enabled) {
+    window.audioEnabled = enabled;
+    localStorage.setItem(AUDIO_KEY, enabled ? '1' : '0');
+    if (!audioToggleBtn) return;
+    audioToggleBtn.classList.toggle('audio-on',  enabled);
+    audioToggleBtn.classList.toggle('audio-off', !enabled);
+    audioToggleBtn.title = enabled
+      ? 'Audio ON — click to disable'
+      : 'Audio OFF — click to enable';
+    // Dim the controls inside the section when audio is off
+    if (audioSection) {
+      audioSection.querySelectorAll('.field-group').forEach(el => {
+        el.classList.toggle('audio-controls-disabled', !enabled);
+      });
+    }
+  }
+
+  // Restore persisted state (default ON)
+  const savedAudio = localStorage.getItem(AUDIO_KEY);
+  applyAudioState(savedAudio === null ? true : savedAudio === '1');
+
+  if (audioToggleBtn) {
+    audioToggleBtn.addEventListener('click', () => applyAudioState(!window.audioEnabled));
+  }
+
   // ── Shutdown button ──────────────────────────────────────────
   const shutdownBtn = document.getElementById('shutdownBtn');
   if (shutdownBtn) {
@@ -70,14 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show shutdown screen immediately — don't wait for server response
       const showDone = () => {
         document.body.innerHTML = `
-          <div style="height:100vh;display:flex;flex-direction:column;align-items:center;
+          <div style="height:100vh;width:100vw;display:flex;flex-direction:column;align-items:center;
                       justify-content:center;background:#0d0d0f;color:#8e8e99;
-                      font-family:system-ui,sans-serif;gap:12px;">
+                      font-family:system-ui,sans-serif;gap:12px;margin:0;padding:0;box-sizing:border-box;">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1d70f5" stroke-width="1.5">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <p style="font-size:15px;color:#e8e8ea;margin:0">Servizi spenti.</p>
-            <p style="font-size:13px;margin:0">Puoi chiudere questa scheda.</p>
+            <p style="font-size:18px;color:#e8e8ea;margin:0;font-weight:600;text-align:center">Services Offline.</p>
+            <p style="font-size:14px;margin:0;text-align:center">You can close this tab.</p>
           </div>`;
       };
 
